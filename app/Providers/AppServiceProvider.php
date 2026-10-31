@@ -4,13 +4,19 @@ namespace App\Providers;
 
 use App\Billing\CommissionCalculator;
 use App\Models\User;
+use App\Payments\FakeGateway;
+use App\Payments\PaymentGateway;
+use App\Payments\StripeGateway;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use RuntimeException;
+use Stripe\StripeClient;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +25,23 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(CommissionCalculator::class, fn () => new CommissionCalculator(
             config()->integer('marketplace.commission.default_rate_bps'),
         ));
+
+        $this->app->singleton(PaymentGateway::class, function (Application $app) {
+            $driver = config()->string('marketplace.payments.gateway');
+
+            if ($driver === 'stripe') {
+                return new StripeGateway(
+                    new StripeClient(config()->string('services.stripe.secret')),
+                    config()->string('services.stripe.webhook_secret'),
+                );
+            }
+
+            if ($app->isProduction()) {
+                throw new RuntimeException('The fake payment gateway cannot be used in production.');
+            }
+
+            return new FakeGateway(config()->string('marketplace.payments.fake.webhook_secret'));
+        });
     }
 
     public function boot(): void
