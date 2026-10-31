@@ -27,6 +27,9 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="MARKETPLACE_CURRENCY" value="USD"/>
+        <env name="MARKETPLACE_COMMISSION_BPS" value="1000"/>
+        <env name="PAYMENT_GATEWAY" value="fake"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
