@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    image: marketplace-api:dev
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      PHP_CLI_SERVER_WORKERS: 4
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  queue:
+    image: marketplace-api:dev
+    command: ["php", "artisan", "queue:work", "redis", "--sleep=1", "--max-time=3600"]
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: marketplace
+      MYSQL_USER: marketplace
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./docker/mysql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-testing.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  db-data:

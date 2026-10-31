@@ -4,42 +4,36 @@ namespace App\Payments;
 
 use App\Exceptions\InvalidWebhookSignature;
 use App\Support\Money;
-use Illuminate\Support\Str;
 
 /**
- * In-memory gateway for tests and local development. Webhooks are signed with
- * a plain HMAC of the body so they can be produced without the Stripe CLI.
+ * Offline gateway for tests and local development. Intent ids are derived
+ * from the idempotency key, so retries return the same intent the way Stripe
+ * does. Webhooks are signed with a plain HMAC of the body.
  */
 final class FakeGateway implements PaymentGateway
 {
-    /** @var array<string, PaymentIntent> keyed by idempotency key */
-    private array $intentsByKey = [];
-
-    /** @var array<string, PaymentIntent> keyed by intent id */
-    private array $intents = [];
+    /** @var array<string, string> intent id => status */
+    private array $statuses = [];
 
     public function __construct(private readonly string $webhookSecret) {}
 
     public function createPaymentIntent(Money $amount, string $idempotencyKey, array $metadata = []): PaymentIntent
     {
-        if (isset($this->intentsByKey[$idempotencyKey])) {
-            return $this->intentsByKey[$idempotencyKey];
-        }
-
-        $id = 'pi_fake_'.Str::random(24);
-        $intent = new PaymentIntent($id, $id.'_secret_'.Str::random(16), 'requires_payment_method');
-
-        return $this->intents[$id] = $this->intentsByKey[$idempotencyKey] = $intent;
+        return $this->retrievePaymentIntent('pi_fake_'.substr(hash('sha256', $idempotencyKey), 0, 24));
     }
 
     public function retrievePaymentIntent(string $id): PaymentIntent
     {
-        return $this->intents[$id] ?? new PaymentIntent($id, $id.'_secret_restored', 'requires_payment_method');
+        return new PaymentIntent(
+            $id,
+            $id.'_secret_'.substr(hash_hmac('sha256', $id, $this->webhookSecret), 0, 16),
+            $this->statuses[$id] ?? 'requires_payment_method',
+        );
     }
 
     public function cancelPaymentIntent(string $id): void
     {
-        $this->intents[$id] = new PaymentIntent($id, $this->retrievePaymentIntent($id)->clientSecret, 'canceled');
+        $this->statuses[$id] = 'canceled';
     }
 
     public function parseWebhook(string $payload, ?string $signature): PaymentEvent
