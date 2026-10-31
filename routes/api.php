@@ -51,6 +51,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
             Route::get('orders', [Vendor\OrderController::class, 'index']);
             Route::post('orders/{vendorOrder}/ship', [Vendor\OrderController::class, 'ship']);
+
+            Route::get('payouts/summary', Vendor\PayoutSummaryController::class);
         });
     });
 
@@ -59,5 +61,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('vendors/{vendor}/approve', [Admin\VendorController::class, 'approve']);
         Route::post('vendors/{vendor}/reject', [Admin\VendorController::class, 'reject']);
         Route::patch('vendors/{vendor}/commission', [Admin\VendorController::class, 'updateCommission']);
+        Route::post('vendors/{vendor}/payouts', [Admin\PayoutController::class, 'store']);
     });
 });
